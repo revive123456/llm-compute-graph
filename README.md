@@ -6,19 +6,6 @@
 
 这是一个标准的 **`SKILL.md` 格式技能（Agent Skill / Skills）**，不绑定任何厂商或产品：只要你的 agent 支持按 `SKILL.md` 发现技能（Claude Code / Claude Agent Skills、Cursor、DeepSeek Harness、以及其它 skill-aware 环境），把它放进对应的技能目录即可使用。
 
-## 这是什么
-
-- **`SKILL.md`**：技能入口，教 agent 如何按视觉规范、`nodes` 数组 schema、生成后校验清单去画图。前端格式：
-  ```yaml
-  ---
-  name: llm-compute-graph
-  description: 生成大模型计算流程图……
-  whenToUse: 用户要「画/生成 XX 大模型（或其子模块）的计算流程图 / 架构图 / 结构示意图 / 前向计算图」时使用。
-  ---
-  ```
-- **`template.html`**：通用自包含模板（decoder-only MoE 结构示意）。画一张新图 = 复制模板 → 重填 `nodes` 数组 + 更新右上角图例 → 自动排版出新的 HTML。
-- **`scripts/validate.mjs`**：零依赖校验脚本（技能 frontmatter + 产出 HTML 自查）。
-
 ## 安装
 
 把整个 `llm-compute-graph` 文件夹放进你 agent 的技能根目录即可（技能根目录因产品而异）：
