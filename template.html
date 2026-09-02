@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>大模型计算流程图模板</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    color: #111;
+  }
+  .page { max-width: 1240px; margin: 0 auto; padding: 26px 22px 70px; }
+  h1.title { font-size: 21px; font-weight: 700; margin: 0 0 4px; letter-spacing: .4px; }
+  p.sub { margin: 0 0 20px; font-size: 12.5px; color: #666; }
+
+  .canvas-wrap {
+    position: relative;
+    border: 1px solid #ececec;
+    border-radius: 10px;
+    overflow: auto;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  }
+  svg { display: block; }
+
+  /* 右上角图例 */
+  .legend {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 250px;
+    background: #ffffff;
+    border: 1.5px solid #111;
+    border-radius: 8px;
+    padding: 12px 14px 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  }
+  .legend h3 { margin: 0 0 10px; font-size: 14px; font-weight: 700; border-bottom: 1.5px solid #111; padding-bottom: 6px; }
+  .legend .row { display: flex; align-items: baseline; gap: 8px; margin: 0 0 7px; font-size: 12.5px; line-height: 1.35; }
+  .legend .what { flex: 0 0 auto; font-family: "JetBrains Mono", Consolas, monospace; font-weight: 700; color: #111; min-width: 74px; white-space: nowrap; }
+  .legend .desc { color: #333; }
+  .legend .rule { margin: 11px 0 7px; font-size: 11.5px; font-weight: 700; color: #666; border-top: 1px dashed #bbb; padding-top: 8px; }
+  .legend .note { font-size: 11.5px; color: #777; margin-top: 9px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="title">大模型计算流程图（decoder-only MoE 结构示意 / 可复用模板）</h1>
+  <p class="sub">白色底 · 黑框模块（框内第一行=模块名，其后为 shape 变换流）· 框间居中短箭头 · 虚线框=重复模块“×n” · 右上角图例。</p>
+
+  <div class="canvas-wrap">
+    <div class="legend">
+      <h3>图例 · 维度具体数字与含义</h3>
+      <div class="row"><span class="what">N</span><span class="desc">batch size（批大小）</span></div>
+      <div class="row"><span class="what">T</span><span class="desc">seq_len（序列长度）</span></div>
+      <div class="rule">模型确定的维度（图中示例数字）</div>
+      <div class="row"><span class="what">32</span><span class="desc">解码器层数</span></div>
+      <div class="row"><span class="what">4096</span><span class="desc">隐藏维度 d_model</span></div>
+      <div class="row"><span class="what">3072</span><span class="desc">输入 / 视觉投影维度</span></div>
+      <div class="row"><span class="what">256</span><span class="desc">KV 低秩压缩维度 d_rep</span></div>
+      <div class="row"><span class="what">2048</span><span class="desc">MoE 专家 FFN 中间维度</span></div>
+      <div class="row"><span class="what">64</span><span class="desc">路由专家总数</span></div>
+      <div class="row"><span class="what">4</span><span class="desc">单 token 激活专家数 top_k</span></div>
+      <div class="row"><span class="what">1</span><span class="desc">共享专家数</span></div>
+      <div class="row"><span class="what">128256</span><span class="desc">词表大小 vocab</span></div>
+      <div class="note">N、T 因批次 / 输入而异，故保留字母；其余为模型确定维度（示例值）。本图为架构示意，具体数值随模型配置不同而有差异。</div>
+    </div>
+
+    <svg id="graph" xmlns="http://www.w3.org/2000/svg" width="1100" viewBox="0 0 1100 0"></svg>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------- 常量 ----------------
+  const CANVAS_W = 1100;
+  const CLR      = "#111111";
+  const CLR_SOFT = "#555555";
+  const FILL     = "#ffffff";
+  const FILL_SOFT= "#fafafa";
+  const FONT     = "'Segoe UI','Microsoft YaHei',system-ui,sans-serif";
+  const MONO     = "'JetBrains Mono',Consolas,monospace";
+
+  const CX       = 550;         // 内容列中心
+  const BOXW     = 410;         // 外层框宽
+  const ARROW    = 46;          // 框间箭头区高度
+  const LINE_T   = 22;          // 主标题行高
+  const LINE_S   = 20;          // shape 行高
+  const PAD      = 13;          // 框内上下边距
+  const CONT_W   = 540;         // 重复容器宽
+  const SUB_W    = CONT_W - 44;
+
+  // ---------------- 渲染工具 ----------------
+  const ELEMS = [];
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function rrect(x,y,w,h,o){
+    o=o||{}; const r=o.r!=null?o.r:7;
+    const dash=o.dash?' stroke-dasharray="8 6"':'';
+    ELEMS.push('<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+r+'" ry="'+r
+      +'" fill="'+(o.fill||FILL)+'" stroke="'+(o.stroke||CLR)+'" stroke-width="'+(o.sw!=null?o.sw:2)+'"'+dash+'/>');
+  }
+  function line(cx, lineTop, lineH, s, o){
+    o=o||{};
+    const size=o.size||14;
+    const anchor=o.anchor||"middle";
+    ELEMS.push('<text x="'+cx+'" y="'+(lineTop+lineH/2+size*0.34)+'" font-family="'+(o.mono?MONO:FONT)
+      +'" font-size="'+size+'" font-weight="'+(o.weight||600)+'" fill="'+(o.color||CLR)
+      +'" text-anchor="'+anchor+'">'+esc(s)+'</text>');
+  }
+  function arrow(cx, y0, y1){
+    ELEMS.push('<line x1="'+cx+'" y1="'+y0+'" x2="'+cx+'" y2="'+y1+'" stroke="'+CLR
+      +'" stroke-width="2" marker-end="url(#aw)"/>');
+  }
+
+  const defs = '<defs><marker id="aw" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">'
+    + '<path d="M0,0 L8,5 L0,10 Z" fill="'+CLR+'"/></marker></defs>';
+
+  // 计算一个普通节点的框高
+  function nodeH(n){
+    let h = PAD*2;
+    if (n.title) h += LINE_T + 4;
+    h += (n.shapes||[]).length * LINE_S;
+    if (n.note)  h += LINE_S;
+    return h;
+  }
+
+  // 画普通节点，返回底部 y
+  function drawNode(n, top){
+    const h = nodeH(n);
+    const x = CX - BOXW/2;
+    rrect(x, top, BOXW, h, { r:7 });
+    let cy = top + PAD;
+    if (n.title){ line(CX, cy, LINE_T, n.title, { size:15, weight:700 }); cy += LINE_T + 4; }
+    (n.shapes||[]).forEach(function(s){ line(CX, cy, LINE_S, s, { mono:true, size:13.5, weight:600 }); cy += LINE_S; });
+    if (n.note){ line(CX, cy, LINE_S, n.note, { size:12.5, weight:500, color:CLR_SOFT }); }
+    return { bottom: top + h };
+  }
+
+  // 重复容器（虚线框 ×n），返回底部 y
+  function drawRepeat(n, top){
+    const hdrH = 34;
+    const subGap = 34;                     // 子模块间空隙（给箭头留出“轴 + 头”的空间）
+    let innerH = 0;
+    n.subs.forEach(function(s){ innerH += nodeH(s); });
+    innerH += subGap * (n.subs.length - 1);
+    const footH = n.footnote ? LINE_S + 8 : 0;
+    const inPad = 14;
+    const h = hdrH + inPad + innerH + footH + inPad;
+
+    const x = CX - CONT_W/2;
+    rrect(x, top, CONT_W, h, { r:12, fill:FILL_SOFT, dash:true });
+    line(CX, top + 8, hdrH, n.title, { size:15.5, weight:800 });
+    const bw=54, bhh=24, bx=CX + CONT_W/2 - bw/2 - 8;
+    rrect(bx, top - 12, bw, bhh, { r:12, fill:"#111", stroke:CLR, sw:1.5 });
+    line(bx + bw/2, top - 12, bhh, n.badge || "×n", { size:13, weight:700, color:"#fff" });
+
+    let sy = top + hdrH + inPad;
+    for (let i=0;i<n.subs.length;i++){
+      const sh = nodeH(n.subs[i]);
+      rrect(CX - SUB_W/2, sy, SUB_W, sh, { r:6, fill:FILL, stroke:CLR, sw:1.6 });
+      let cy = sy + 9;
+      if (n.subs[i].title){ line(CX, cy, LINE_T, n.subs[i].title, { size:13.5, weight:700 }); cy += LINE_T + 2; }
+      (n.subs[i].shapes||[]).forEach(function(s){ line(CX, cy, LINE_S, s, { mono:true, size:12.5, weight:600 }); cy += LINE_S; });
+      if (n.subs[i].note){ line(CX, cy, LINE_S, n.subs[i].note, { size:11.5, weight:500, color:CLR_SOFT }); }
+      if (i < n.subs.length-1) arrow(CX, sy+sh, sy+sh+subGap);
+      sy += sh + (i < n.subs.length-1 ? subGap : 0);
+    }
+    if (n.footnote) line(CX, sy + 4, LINE_S, n.footnote, { size:12, weight:500, color:CLR_SOFT });
+
+    return { bottom: top + h };
+  }
+
+  // ---------------- 模型结构（可复用的配置，复制后改这里即可） ----------------
+  const nodes = [
+    { title: "输入 · 文本 / 图像 / 音视频 token",
+      shapes: ["[N, T, 4096] 多模态 token"],
+      note: "多模态输入" },
+
+    { title: "多模态编码器 + 投影层",
+      shapes: ["[N, T, 3072] → [N, T, 4096]"] },
+
+    { title: "Embedding + RMSNorm",
+      shapes: ["[N, T, 4096] → [N, T, 4096]"] },
+
+    { type: "repeat", title: "Transformer Decoder Layer × 32", badge: "×32",
+      subs: [
+        { title: "注意力模块（浅层 Dense / 深层 稀疏）", shapes: ["[N, T, 4096] → [N, T, 4096]"], note: "KV 低秩压缩 d_rep = 256" },
+        { title: "残差 ⊕ + RMSNorm", shapes: ["[N, T, 4096] → [N, T, 4096]"] },
+        { title: "MoE FFN（混合专家）", shapes: ["[N, T, 4096] → [N, T, 2048] → [N, T, 4096]"], note: "64 路由专家 · top-4 · 共享 1" },
+        { title: "残差 ⊕ + RMSNorm", shapes: ["[N, T, 4096] → [N, T, 4096]"] }
+      ],
+      footnote: "深层采用稀疏注意力（索引 + 滑动窗口 + top-k）降低长序列计算开销" },
+
+    { title: "最终 RMSNorm",
+      shapes: ["[N, T, 4096] → [N, T, 4096]"] },
+
+    { title: "lm_head 输出投影",
+      shapes: ["[N, T, 4096] → [N, T, 128256]"] },
+
+    { title: "Softmax → 概率输出",
+      shapes: ["[N, T, 128256] → [N, T, 128256]"] }
+  ];
+
+  // ---------------- 标题（左对齐，避开右上图例） ----------------
+  const TITLE_Y = 16;
+  line(40, TITLE_Y, LINE_T, "大模型计算流程图 · 前向计算流（decoder-only MoE 结构示意）", { anchor:"start", size:17, weight:800 });
+  line(40, TITLE_Y + LINE_T, LINE_T, "多模态输入 · 潜在注意力 · MoE 混合专家 · 重复层 ×n", { anchor:"start", size:12.5, weight:500, color:CLR_SOFT });
+  let top = TITLE_Y + LINE_T + 34;
+
+  // ---------------- 依次画节点 + 节点间垂直箭头 ----------------
+  const built = [];
+  for (let i=0;i<nodes.length;i++){
+    const n = nodes[i];
+    let res;
+    if (n.type === "repeat") res = drawRepeat(n, top);
+    else res = drawNode(n, top);
+    built.push({ n:n, top:top, bottom:res.bottom });
+    top = res.bottom + ARROW;
+  }
+  for (let i=1;i<built.length;i++){
+    arrow(CX, built[i-1].bottom, built[i].top);
+  }
+
+  // ---------------- 组装 ----------------
+  const H = Math.max(720, top + 20);
+  const svg = document.getElementById("graph");
+  svg.setAttribute("viewBox", "0 0 "+CANVAS_W+" "+H);
+  svg.setAttribute("width", CANVAS_W);
+  svg.setAttribute("height", H);
+  const bg = '<rect x="0" y="0" width="'+CANVAS_W+'" height="'+H+'" fill="#ffffff"/>';
+  svg.innerHTML = defs + bg + ELEMS.join("");
+})();
+</script>
+</body>
+</html>
