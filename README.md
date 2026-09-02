@@ -49,7 +49,9 @@ agent 会：
 1. 读取本技能的 `template.html` 作为基座；
 2. 先跟你确认要画的**范围**（整模型 / 某子模块 / 某段到算子级）与**细度**（模块 / 层 / 算子 / 到 head、d_head、top_k 级）；
 3. 按需采集关键维度（`hidden_size / num_layers / n_experts / top_k / vocab`，细化时再加 `n_head / d_head / d_rep / intermediate_size`）；
-4. 复制模板、重填 `nodes` 数组与图例，产出**自包含 HTML** 新文件，并按校验清单自查。
+4. 复制模板、重填 `nodes` 数组与图例，产出**自包含 HTML** 新文件，并写到**当前工作目录**，按校验清单自查。
+
+> 产出的 HTML **默认放在你当前的工作目录**（DeepSeek Harness 下是 workspace 根，Claude Code 下是当前项目目录）；也可以让 agent 写到别的目录。
 
 ## 文件
 
