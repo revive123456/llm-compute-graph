@@ -119,60 +119,179 @@
   const defs = '<defs><marker id="aw" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">'
     + '<path d="M0,0 L8,5 L0,10 Z" fill="'+CLR+'"/></marker></defs>';
 
-  // 计算一个普通节点的框高
-  function nodeH(n){
+  // ---- 文本宽度估算 + 自动换行（防止长文本溢出框外 / 硬塞单行） ----
+  // 各位置文本可用的最大宽与字号
+  const MAIN_W = BOXW - PAD*2 - 10;   // 普通节点文本可用宽
+  const SUB_TXT_W = SUB_W - 22;        // 重复容器内子框文本可用宽
+  const FOOT_W = CONT_W - 2*14 - 18;   // 脚注文本可用宽
+  const ST  = { title:15,  shape:13.5, note:12.5 };  // 普通节点样式
+  const STS = { title:13.5, shape:12.5, note:11.5 }; // 子模块样式
+
+  // 估算单个字符宽度（CJK/全角≈1em，拉丁/数字≈0.58em，空格≈0.3em）
+  function cw(ch, size){
+    const c = ch.codePointAt(0);
+    if (c === 0x20) return size * 0.30;
+    if (c < 0x2E80) return size * 0.58;
+    return size;
+  }
+  function tw(s, size){ let w = 0; for (const ch of s) w += cw(ch, size); return w; }
+  // 给定一行原始字符串 → 按可用宽自动折成多行（优先在空格处断行，长 CJK 连串硬断）
+  function wrapText(s, maxW, size){
+    const lines = [];
+    let line = "", lineW = 0;
+    for (const ch of s){
+      if (ch === "\n"){ lines.push(line); line = ""; lineW = 0; continue; }
+      const w = cw(ch, size);
+      if (lineW + w <= maxW){ line += ch; lineW += w; continue; }
+      const sp = line.lastIndexOf(" ");
+      if (sp >= 0){
+        const tail = line.slice(sp + 1);
+        if (tw(tail, size) + w <= maxW){
+          lines.push(line.slice(0, sp));            // 断在空格前
+          line = tail + ch; lineW = tw(tail, size) + w;
+          continue;
+        }
+      }
+      lines.push(line); line = ch; lineW = w;      // 无空格可断 → 硬断
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : [""];
+  }
+
+  // 计算一个普通节点的框高（按折行后的实际行数）
+  function nodeH(n, w, st){
     let h = PAD*2;
     if (n.title) h += LINE_T + 4;
-    h += (n.shapes||[]).length * LINE_S;
-    if (n.note)  h += LINE_S;
+    (n.shapes||[]).forEach(function(s){ h += wrapText(s, w, st.shape).length * LINE_S; });
+    if (n.note)  h += wrapText(n.note, w, st.note).length * LINE_S;
     return h;
   }
 
   // 画普通节点，返回底部 y
   function drawNode(n, top){
-    const h = nodeH(n);
-    const x = CX - BOXW/2;
-    rrect(x, top, BOXW, h, { r:7 });
+    const h = nodeH(n, MAIN_W, ST);
+    rrect(CX - BOXW/2, top, BOXW, h, { r:7 });
     let cy = top + PAD;
-    if (n.title){ line(CX, cy, LINE_T, n.title, { size:15, weight:700 }); cy += LINE_T + 4; }
-    (n.shapes||[]).forEach(function(s){ line(CX, cy, LINE_S, s, { mono:true, size:13.5, weight:600 }); cy += LINE_S; });
-    if (n.note){ line(CX, cy, LINE_S, n.note, { size:12.5, weight:500, color:CLR_SOFT }); }
+    if (n.title){ line(CX, cy, LINE_T, n.title, { size:ST.title, weight:700 }); cy += LINE_T + 4; }
+    (n.shapes||[]).forEach(function(s){
+      wrapText(s, MAIN_W, ST.shape).forEach(function(ln){ line(CX, cy, LINE_S, ln, { mono:true, size:ST.shape, weight:600 }); cy += LINE_S; });
+    });
+    if (n.note){
+      wrapText(n.note, MAIN_W, ST.note).forEach(function(ln){ line(CX, cy, LINE_S, ln, { size:ST.note, weight:500, color:CLR_SOFT }); cy += LINE_S; });
+    }
     return { bottom: top + h };
   }
 
-  // 重复容器（虚线框 ×n），返回底部 y
-  function drawRepeat(n, top){
-    const hdrH = 34;
-    const subGap = 34;                     // 子模块间空隙（给箭头留出“轴 + 头”的空间）
+  // 普通直线段（画分支汇合线）
+  function seg(x1, y1, x2, y2){
+    ELEMS.push('<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+CLR+'" stroke-width="2"/>');
+  }
+  // 在任意 x/宽处画一个框（用于分支列），返回底部 y
+  function boxAt(x, top, w, item, st){
+    const tw = w - 22;
+    const h = nodeH(item, tw, st);
+    rrect(x, top, w, h, { r:6, fill:FILL, stroke:CLR, sw:1.6 });
+    let cy = top + 9;
+    if (item.title){ line(x + w/2, cy, LINE_T, item.title, { size:st.title, weight:700 }); cy += LINE_T + 2; }
+    (item.shapes||[]).forEach(function(s){
+      wrapText(s, tw, st.shape).forEach(function(ln){ line(x + w/2, cy, LINE_S, ln, { mono:true, size:st.shape, weight:600 }); cy += LINE_S; });
+    });
+    if (item.note){
+      wrapText(item.note, tw, st.note).forEach(function(ln){ line(x + w/2, cy, LINE_S, ln, { size:st.note, weight:500, color:CLR_SOFT }); cy += LINE_S; });
+    }
+    return { bottom: top + h };
+  }
+  // 多模态并行分支：标题 + 左右两列框 + 底部汇合线，返回底部 y
+  const BR_ST = { title:13, shape:12, note:11 };
+  function drawBranch(n, top){
+    const colW = 240, gap = 16, pairW = colW*2 + gap;
+    const leftX = CX - pairW/2, rightX = leftX + colW + gap;
+    const hdrH = 26;
+    line(CX, top, hdrH, n.title, { size:14.5, weight:800 });
+    const boxTop = top + hdrH + 8;
+    const l = boxAt(leftX, boxTop, colW, n.cols[0], BR_ST);
+    const r = boxAt(rightX, boxTop, colW, n.cols[1], BR_ST);
+    const lcx = leftX + colW/2, rcx = rightX + colW/2;
+    const boxBottom = Math.max(l.bottom, r.bottom);
+    const barY = boxBottom + 16;
+    seg(lcx, boxBottom, lcx, barY);
+    seg(rcx, boxBottom, rcx, barY);
+    seg(lcx, barY, rcx, barY);
+    let bottom = barY;
+    if (n.note){ line(CX, barY + 4, LINE_S, n.note, { size:11.5, weight:500, color:CLR_SOFT }); bottom = barY + 4 + LINE_S + 2; }
+    return { bottom: bottom };
+  }
+
+  // 容器/子框宽度关系（相对父容器宽 parentW 内缩；可递归嵌套组）
+  function innerBoxW(parentW){ return parentW - 44; }      // 容器内普通子框宽
+  function innerBoxTextW(parentW){ return parentW - 66; }   // 容器内子框文本可用宽
+  function innerGroupW(parentW){ return parentW - 28; }     // 容器内嵌套组宽
+
+  // 画一个普通子框（位于容器/组内）
+  function drawBox(item, top, parentW, st){
+    const w = innerBoxW(parentW);
+    const tw = innerBoxTextW(parentW);
+    const h = nodeH(item, tw, st);
+    rrect(CX - w/2, top, w, h, { r:6, fill:FILL, stroke:CLR, sw:1.6 });
+    let cy = top + 9;
+    if (item.title){ line(CX, cy, LINE_T, item.title, { size:st.title, weight:700 }); cy += LINE_T + 2; }
+    (item.shapes||[]).forEach(function(s){
+      wrapText(s, tw, st.shape).forEach(function(ln){ line(CX, cy, LINE_S, ln, { mono:true, size:st.shape, weight:600 }); cy += LINE_S; });
+    });
+    if (item.note){
+      wrapText(item.note, tw, st.note).forEach(function(ln){ line(CX, cy, LINE_S, ln, { size:st.note, weight:500, color:CLR_SOFT }); cy += LINE_S; });
+    }
+    return { bottom: top + h };
+  }
+
+  // 计算一个重复容器的高度（含内部普通子模块 / 嵌套组，递归）
+  function containerH(g, w, st){
+    const hdrH = 30, inPad = 12, subGap = 30;
     let innerH = 0;
-    n.subs.forEach(function(s){ innerH += nodeH(s); });
-    innerH += subGap * (n.subs.length - 1);
-    const footH = n.footnote ? LINE_S + 8 : 0;
-    const inPad = 14;
+    g.subs.forEach(function(s){ innerH += itemH(s, w, st); });
+    innerH += subGap * (g.subs.length - 1);
+    const fLines = g.footnote ? wrapText(g.footnote, w - 24, 11.5) : [];
+    const footH = fLines.length ? fLines.length * LINE_S + 8 : 0;
+    return hdrH + inPad + innerH + footH + inPad;
+  }
+  function itemH(item, parentW, st){
+    if (item.type === "group") return containerH(item, innerGroupW(parentW), st);
+    return nodeH(item, innerBoxTextW(parentW), st);
+  }
+
+  // 重复容器（虚线框 + 右上徽标 + 内部子模块/嵌套组，递归），返回底部 y
+  function drawContainer(g, top, w, st){
+    const hdrH = 30, inPad = 12, subGap = 30;
+    let innerH = 0;
+    g.subs.forEach(function(s){ innerH += itemH(s, w, st); });
+    innerH += subGap * (g.subs.length - 1);
+    const fLines = g.footnote ? wrapText(g.footnote, w - 24, 11.5) : [];
+    const footH = fLines.length ? fLines.length * LINE_S + 8 : 0;
     const h = hdrH + inPad + innerH + footH + inPad;
 
-    const x = CX - CONT_W/2;
-    rrect(x, top, CONT_W, h, { r:12, fill:FILL_SOFT, dash:true });
-    line(CX, top + 8, hdrH, n.title, { size:15.5, weight:800 });
-    const bw=54, bhh=24, bx=CX + CONT_W/2 - bw/2 - 8;
-    rrect(bx, top - 12, bw, bhh, { r:12, fill:"#111", stroke:CLR, sw:1.5 });
-    line(bx + bw/2, top - 12, bhh, n.badge || "×n", { size:13, weight:700, color:"#fff" });
-
-    let sy = top + hdrH + inPad;
-    for (let i=0;i<n.subs.length;i++){
-      const sh = nodeH(n.subs[i]);
-      rrect(CX - SUB_W/2, sy, SUB_W, sh, { r:6, fill:FILL, stroke:CLR, sw:1.6 });
-      let cy = sy + 9;
-      if (n.subs[i].title){ line(CX, cy, LINE_T, n.subs[i].title, { size:13.5, weight:700 }); cy += LINE_T + 2; }
-      (n.subs[i].shapes||[]).forEach(function(s){ line(CX, cy, LINE_S, s, { mono:true, size:12.5, weight:600 }); cy += LINE_S; });
-      if (n.subs[i].note){ line(CX, cy, LINE_S, n.subs[i].note, { size:11.5, weight:500, color:CLR_SOFT }); }
-      if (i < n.subs.length-1) arrow(CX, sy+sh, sy+sh+subGap);
-      sy += sh + (i < n.subs.length-1 ? subGap : 0);
+    rrect(CX - w/2, top, w, h, { r:11, fill:FILL_SOFT, dash:true, sw:2 });
+    line(CX, top + 6, hdrH, g.title, { size:14.5, weight:800 });
+    if (g.badge){
+      const bw = 46, bhh = 22, bx = CX + w/2 - bw/2 - 8;
+      rrect(bx, top - 10, bw, bhh, { r:10, fill:"#111", stroke:CLR, sw:1.5 });
+      line(bx + bw/2, top - 10, bhh, g.badge, { size:12, weight:700, color:"#fff" });
     }
-    if (n.footnote) line(CX, sy + 4, LINE_S, n.footnote, { size:12, weight:500, color:CLR_SOFT });
-
+    let sy = top + hdrH + inPad;
+    for (let i=0;i<g.subs.length;i++){
+      const res = (g.subs[i].type === "group")
+        ? drawContainer(g.subs[i], sy, innerGroupW(w), st)
+        : drawBox(g.subs[i], sy, w, st);
+      if (i < g.subs.length-1) arrow(CX, res.bottom, res.bottom + subGap);
+      sy = res.bottom + (i < g.subs.length-1 ? subGap : 0);
+    }
+    if (fLines.length){
+      fLines.forEach(function(ln){ line(CX, sy + 4, LINE_S, ln, { size:11.5, weight:500, color:CLR_SOFT }); sy += LINE_S; });
+    }
     return { bottom: top + h };
   }
+
+  // 兼容入口（外层重复容器）：
+  function drawRepeat(n, top){ return drawContainer(n, top, CONT_W, STS); }
 
   // ---------------- 模型结构（可复用的配置，复制后改这里即可） ----------------
   const nodes = [
@@ -217,6 +336,7 @@
     const n = nodes[i];
     let res;
     if (n.type === "repeat") res = drawRepeat(n, top);
+    else if (n.type === "branch") res = drawBranch(n, top);
     else res = drawNode(n, top);
     built.push({ n:n, top:top, bottom:res.bottom });
     top = res.bottom + ARROW;
