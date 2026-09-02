@@ -82,7 +82,7 @@ if (nl < 0 || raw.slice(0, nl).replace(/\r$/, "") !== "---") {
 
 // ---------- 2. metadata 资源引用 ----------
 console.log("▶ 资源引用");
-for (const rel of ["template.html", "references-method.md"]) {
+for (const rel of ["template.html"]) {
   const p = join(BASE, rel);
   if (existsSync(p) && statSync(p).isFile()) ok(`资源存在: ${rel}`);
   else bad(`缺少资源: ${rel}`);

@@ -17,7 +17,6 @@
   ---
   ```
 - **`template.html`**：通用自包含模板（decoder-only MoE 结构示意）。画一张新图 = 复制模板 → 重填 `nodes` 数组 + 更新右上角图例 → 自动排版出新的 HTML。
-- **`references-method.md`**：深度方法说明（绘制步骤、常见问题、复用原理），需要细节时按需读取。
 - **`scripts/validate.mjs`**：零依赖校验脚本（技能 frontmatter + 产出 HTML 自查）。
 
 ## 安装
@@ -58,7 +57,6 @@ agent 会：
 |---|---|
 | `SKILL.md` | 技能入口：绘制方法 + 视觉规范 + 生成后校验清单（agent 加载的主指令） |
 | `template.html` | 通用可复用模板（内嵌 SVG + JS 数据驱动，重填 `nodes` + 图例即得新图） |
-| `references-method.md` | 深度方法说明（绘制步骤、常见问题、复用原理） |
 | `scripts/validate.mjs` | 零依赖校验脚本（技能 frontmatter + 产出 HTML 自查） |
 | `README.md` | 本说明 |
 

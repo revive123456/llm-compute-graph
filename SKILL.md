@@ -9,7 +9,6 @@ whenToUse: >-
 metadata:
   resources:
     - template.html
-  methodDoc: references-method.md
 ---
 
 # 大模型计算流程图绘制（llm-compute-graph）
@@ -18,8 +17,20 @@ metadata:
 
 ## 0. 先做（重要）
 - **读取模板**：先用文本读取能力（read）打开本技能目录下的 [`template.html`](template.html)，里面的 `nodes` 数组、常量（`CX/BOXW/ARROW/CONT_W/SUB_W/...`）与渲染函数（`rrect/line/arrow/drawNode/drawRepeat`）就是你填空用的骨架。模板是通用 decoder-only MoE 结构示意，直接可作为改造基座。
-- 深度方法说明见 [`references-method.md`](references-method.md)，只在需要细节（如「常见问题」「复用原理」）时按需读取。
 - 所有相对路径都以**本技能目录**为基准解析后再使用。
+
+**关键常量**（`template.html` 顶部）：
+| 常量 | 含义 |
+|---|---|
+| `CANVAS_W` | SVG 画布宽 |
+| `CX` | 内容列中心（所有框/箭头以此居中） |
+| `BOXW` | 外层框宽 |
+| `ARROW` | 框间箭头区高度 |
+| `LINE_T / LINE_S` | 标题行、shape 行高 |
+| `PAD` | 框内上下边距 |
+| `CONT_W / SUB_W` | 重复容器宽、容器内子框宽 |
+
+**渲染函数**：`rrect()` 圆角矩形（支持虚线 `dash`）；`line()` 居中文本（支持 `mono`/`anchor`/`weight`/`color`）；`arrow()` 居中竖直箭头（SVG marker，尖端落在目标点）；`drawNode()` 画普通黑框模块、返回底部 y；`drawRepeat()` 画虚线重复容器 + 右上角徽标 + 内部子模块串。
 
 ## 1. 画图前先确认：展开到什么程度
 计算流程图的多细是不确定的，**展开得越深，需要收集的信息越多**。动工前先跟用户敲定两件事：
