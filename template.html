@@ -25,24 +25,34 @@
   }
   svg { display: block; }
 
-  /* 右上角图例 */
-  .legend {
+  /* 右上角浮动图例：数值图例框 + 算子/模块定义框，上下叠放 */
+  .side-panel {
     position: absolute;
     top: 14px;
     right: 14px;
-    width: 250px;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .legend, .def-box {
     background: #ffffff;
-    border: 1.5px solid #111;
     border-radius: 8px;
     padding: 12px 14px 14px;
     box-shadow: 0 2px 8px rgba(0,0,0,.08);
   }
-  .legend h3 { margin: 0 0 10px; font-size: 14px; font-weight: 700; border-bottom: 1.5px solid #111; padding-bottom: 6px; }
+  .legend { border: 1.5px solid #111; }
+  .def-box { border: 1.5px solid #111; }
+  .legend h3, .def-box h3 { margin: 0 0 10px; font-size: 14px; font-weight: 700; border-bottom: 1.5px solid #111; padding-bottom: 6px; }
   .legend .row { display: flex; align-items: baseline; gap: 8px; margin: 0 0 7px; font-size: 12.5px; line-height: 1.35; }
-  .legend .what { flex: 0 0 auto; font-family: "JetBrains Mono", Consolas, monospace; font-weight: 700; color: #111; min-width: 74px; white-space: nowrap; }
+  .legend .what { flex: 0 0 auto; font-family: "JetBrains Mono", Consolas, monospace; font-weight: 700; color: #111; min-width: 74px; }
   .legend .desc { color: #333; }
   .legend .rule { margin: 11px 0 7px; font-size: 11.5px; font-weight: 700; color: #666; border-top: 1px dashed #bbb; padding-top: 8px; }
   .legend .note { font-size: 11.5px; color: #777; margin-top: 9px; }
+  /* 定义框：名称占一行（可换行），说明在下一行 */
+  .def-box .row { display: block; margin: 0 0 9px; font-size: 12.3px; line-height: 1.35; }
+  .def-box .what { display: block; font-family: "JetBrains Mono", Consolas, monospace; font-weight: 700; color: #111; font-size: 12.4px; margin-bottom: 1px; }
+  .def-box .desc { display: block; color: #333; }
 </style>
 </head>
 <body>
@@ -51,21 +61,31 @@
   <p class="sub">白色底 · 黑框模块（框内第一行=模块名，其后为 shape 变换流）· 框间居中短箭头 · 虚线框=重复模块“×n” · 右上角图例。</p>
 
   <div class="canvas-wrap">
-    <div class="legend">
-      <h3>图例 · 维度具体数字与含义</h3>
-      <div class="row"><span class="what">N</span><span class="desc">batch size（批大小）</span></div>
-      <div class="row"><span class="what">T</span><span class="desc">seq_len（序列长度）</span></div>
-      <div class="rule">模型确定的维度（图中示例数字）</div>
-      <div class="row"><span class="what">32</span><span class="desc">解码器层数</span></div>
-      <div class="row"><span class="what">4096</span><span class="desc">隐藏维度 d_model</span></div>
-      <div class="row"><span class="what">3072</span><span class="desc">输入 / 视觉投影维度</span></div>
-      <div class="row"><span class="what">256</span><span class="desc">KV 低秩压缩维度 d_rep</span></div>
-      <div class="row"><span class="what">2048</span><span class="desc">MoE 专家 FFN 中间维度</span></div>
-      <div class="row"><span class="what">64</span><span class="desc">路由专家总数</span></div>
-      <div class="row"><span class="what">4</span><span class="desc">单 token 激活专家数 top_k</span></div>
-      <div class="row"><span class="what">1</span><span class="desc">共享专家数</span></div>
-      <div class="row"><span class="what">128256</span><span class="desc">词表大小 vocab</span></div>
-      <div class="note">N、T 因批次 / 输入而异，故保留字母；其余为模型确定维度（示例值）。本图为架构示意，具体数值随模型配置不同而有差异。</div>
+    <div class="side-panel">
+      <div class="legend">
+        <h3>图例 · 数值维度</h3>
+        <div class="row"><span class="what">N</span><span class="desc">batch size（批大小）</span></div>
+        <div class="row"><span class="what">T</span><span class="desc">seq_len（序列长度）</span></div>
+        <div class="rule">模型确定的维度（图中示例数字）</div>
+        <div class="row"><span class="what">32</span><span class="desc">解码器层数</span></div>
+        <div class="row"><span class="what">4096</span><span class="desc">隐藏维度 d_model</span></div>
+        <div class="row"><span class="what">3072</span><span class="desc">输入 / 视觉投影维度</span></div>
+        <div class="row"><span class="what">256</span><span class="desc">KV 低秩压缩维度 d_rep</span></div>
+        <div class="row"><span class="what">2048</span><span class="desc">MoE 专家 FFN 中间维度</span></div>
+        <div class="row"><span class="what">64</span><span class="desc">路由专家总数</span></div>
+        <div class="row"><span class="what">4</span><span class="desc">单 token 激活专家数 top_k</span></div>
+        <div class="row"><span class="what">1</span><span class="desc">共享专家数</span></div>
+        <div class="row"><span class="what">128256</span><span class="desc">词表大小 vocab</span></div>
+        <div class="note">N、T 因批次 / 输入而异，故保留字母；其余为模型确定维度（示例值）。本图为架构示意，具体数值随模型配置不同而有差异。</div>
+      </div>
+
+      <div class="def-box">
+        <h3>算子 / 模块定义</h3>
+        <div class="row"><span class="what">SwiGLU</span><span class="desc">激活函数（hidden_act）</span></div>
+        <div class="row"><span class="what">RMSNorm</span><span class="desc">归一化算子</span></div>
+        <div class="row"><span class="what">GQA</span><span class="desc">分组查询注意力机制</span></div>
+        <div class="row"><span class="what">RoPE</span><span class="desc">旋转位置编码算子</span></div>
+      </div>
     </div>
 
     <svg id="graph" xmlns="http://www.w3.org/2000/svg" width="1100" viewBox="0 0 1100 0"></svg>
